@@ -1,8 +1,9 @@
 import Darwin
 import Foundation
 
-/// Adds the certificate to a slicer's file, then re-signs the app so macOS still opens it. Every change keeps a
-/// backup, and any failure puts the file back.
+/// Adds the certificate to a slicer's file, then re-signs the app so macOS still opens it. Before its first
+/// change to a slicer it keeps a snapshot of everything re-signing touches, so Undo, or any failure, puts the
+/// slicer back exactly as it was, original signature included.
 public struct Installer: Sendable {
     public struct State: Equatable, Sendable {
         public var trusted: Bool
@@ -19,7 +20,7 @@ public struct Installer: Sendable {
 
     /// Slow: checking the signature reads the whole app. Call it off the main thread.
     public func state(of slicer: Slicer, for cert: CACertificate?) -> State {
-        State(trusted: cert.map { contains(slicer, $0) } ?? false, signatureValid: Self.verify(slicer.app) == nil, canUndo: latestBackup(slicer) != nil)
+        State(trusted: cert.map { contains(slicer, $0) } ?? false, signatureValid: Self.verify(slicer.app) == nil, canUndo: snapshot(of: slicer) != nil)
     }
 
     public func contains(_ slicer: Slicer, _ cert: CACertificate) -> Bool {
@@ -30,53 +31,77 @@ public struct Installer: Sendable {
     /// Returns false when it was already there. The caller checks the slicer isn't running.
     @discardableResult
     public func install(_ cert: CACertificate, into slicer: Slicer) throws -> Bool {
-        let original = try Data(contentsOf: slicer.certFile)
-        let text = String(decoding: original, as: UTF8.self)
+        let text = try String(contentsOf: slicer.certFile, encoding: .utf8)
         guard !PEM.certificates(in: text).contains(cert.der) else { return false }
-        try backUp(original, of: slicer)
+        let saved = try snapshot(of: slicer) ?? takeSnapshot(of: slicer)
         let added = text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + cert.pem
-        try replace(slicer, with: Data(added.utf8), restoring: original)
-        return true
-    }
-
-    /// Puts back the file as it was before the last change.
-    public func undo(_ slicer: Slicer) throws {
-        guard let backup = latestBackup(slicer) else { throw CertError.nothingToUndo }
-        let current = try Data(contentsOf: slicer.certFile)
-        try replace(slicer, with: try Data(contentsOf: backup), restoring: current)
-        try FileManager.default.removeItem(at: backup)
-    }
-
-    private func replace(_ slicer: Slicer, with data: Data, restoring previous: Data) throws {
         do {
-            try data.write(to: slicer.certFile, options: .atomic)
+            try Data(added.utf8).write(to: slicer.certFile, options: .atomic)
         } catch {
             throw CertError.noPermission(slicer.name)
         }
         if let failure = Self.sign(slicer.app) ?? Self.verify(slicer.app) {
-            try? previous.write(to: slicer.certFile, options: .atomic)
-            _ = Self.sign(slicer.app)
+            try? restore(slicer, from: saved)
             throw CertError.signingFailed(failure)
         }
         // Gatekeeper checks a downloaded app against its notarization, which the new signature doesn't
         // have, and would refuse to open it. You opened it before, so its download flag can go.
         removexattr(slicer.app.path, "com.apple.quarantine", 0)
+        return true
     }
 
-    // MARK: Backups
+    /// Puts the slicer back as it was before this app first changed it.
+    public func undo(_ slicer: Slicer) throws {
+        guard let saved = snapshot(of: slicer) else { throw CertError.nothingToUndo }
+        try restore(slicer, from: saved)
+        if let failure = Self.verify(slicer.app) { throw CertError.signingFailed(failure) }
+        try FileManager.default.removeItem(at: saved)
+    }
+
+    // MARK: Snapshots
+
+    /// What re-signing changes: the certificate file, the main program, which holds the signature, and the
+    /// seal of the app's files.
+    private func parts(of slicer: Slicer) -> [String] {
+        let info = NSDictionary(contentsOf: slicer.app.appending(path: "Contents/Info.plist"))
+        let program = info?["CFBundleExecutable"] as? String ?? ""
+        return ["Contents/Resources/cert/printer.cer", "Contents/MacOS/\(program)", "Contents/_CodeSignature"]
+    }
+
+    /// The version a snapshot belongs to. An update replaces the app, and an old snapshot with it.
+    private func version(of slicer: Slicer) -> String {
+        let info = NSDictionary(contentsOf: slicer.app.appending(path: "Contents/Info.plist"))
+        return "\(info?["CFBundleShortVersionString"] as? String ?? "")+\(info?["CFBundleVersion"] as? String ?? "")"
+    }
 
     private func folder(_ slicer: Slicer) -> URL { backups.appending(path: slicer.bundleID, directoryHint: .isDirectory) }
 
-    private func backUp(_ data: Data, of slicer: Slicer) throws {
+    /// The snapshot for this version of the slicer, if there is one.
+    func snapshot(of slicer: Slicer) -> URL? {
         let dir = folder(slicer)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        try data.write(to: dir.appending(path: "printer-\(stamp).cer"), options: .atomic)
+        guard (try? String(contentsOf: dir.appending(path: "version"), encoding: .utf8)) == version(of: slicer) else { return nil }
+        return dir
     }
 
-    func latestBackup(_ slicer: Slicer) -> URL? {
-        (try? FileManager.default.contentsOfDirectory(at: folder(slicer), includingPropertiesForKeys: nil))?
-            .filter { $0.pathExtension == "cer" }.max { $0.lastPathComponent < $1.lastPathComponent }
+    private func takeSnapshot(of slicer: Slicer) throws -> URL {
+        let dir = folder(slicer)
+        try? FileManager.default.removeItem(at: dir)
+        for part in parts(of: slicer) {
+            let target = dir.appending(path: part)
+            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            // A clone on APFS: instant, and it only takes space once re-signing rewrites the original.
+            try FileManager.default.copyItem(at: slicer.app.appending(path: part), to: target)
+        }
+        try version(of: slicer).write(to: dir.appending(path: "version"), atomically: true, encoding: .utf8)
+        return dir
+    }
+
+    private func restore(_ slicer: Slicer, from saved: URL) throws {
+        for part in parts(of: slicer) {
+            let target = slicer.app.appending(path: part), staged = target.deletingLastPathComponent().appending(path: ".restoring-\(UUID().uuidString)")
+            try FileManager.default.copyItem(at: saved.appending(path: part), to: staged)
+            _ = try FileManager.default.replaceItemAt(target, withItemAt: staged)
+        }
     }
 
     // MARK: Signing

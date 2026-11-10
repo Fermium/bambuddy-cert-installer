@@ -2,14 +2,16 @@
 
 A small macOS menu bar app that finds [Bambuddy](https://github.com/maziggy/bambuddy) on your network, reads its Virtual Printer certificate, and adds it to OrcaSlicer and Bambu Studio, so both trust the virtual printer.
 
-Both slicers read printer certificates only from a file inside their own app. Changing that file breaks the app's signature, and macOS then won't open it. So the app adds the certificate, then re-signs the slicer on your Mac, keeping its entitlements. Every change keeps a backup, and **Undo** puts the file back.
+Both slicers read printer certificates only from a file inside their own app. Changing that file breaks the app's signature, and macOS then won't open it. So the app adds the certificate, then re-signs the slicer on your Mac, keeping its entitlements. Before its first change to a slicer it snapshots everything re-signing touches, so **Undo** puts the slicer back exactly, original signature included.
 
 ## How it works
 
 1. It finds Bambuddy the way the slicers find printers: it sends the Bambu printer search on UDP 2021, and Bambuddy's virtual printer answers. If nothing answers, it tries Bambuddy Tray's address, then `bambuddy.lan` and `bambuddy.local`. You can also type an address.
 2. It reads the certificate from `/api/v1/virtual-printers/ca-certificate`, and checks it's a single certificate that matches the fingerprint Bambuddy sends and hasn't expired.
 3. The first time, you check the fingerprint against Bambuddy's **Settings › Virtual Printer** page and trust it. After that it refuses any other certificate until you trust the new one.
-4. For each slicer it shows whether it trusts Bambuddy. **Add** appends the certificate, re-signs the app and checks the signature. If anything fails, it puts the file back.
+4. For each slicer it shows whether it trusts Bambuddy. **Add** appends the certificate, re-signs the app and checks the signature. If anything fails, it restores the snapshot.
+
+The snapshot holds the certificate file, the slicer's main program and its signature folder, about 300 MB per slicer. Undo restores it and deletes it. A slicer update makes a new one on the next **Add**.
 
 Slicer updates replace the file, so it checks again every 30 minutes and when your Mac wakes.
 
