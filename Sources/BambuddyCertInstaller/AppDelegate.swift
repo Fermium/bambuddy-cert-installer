@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateIcon() {
         let good = model.allGood
-        let image = NSImage(systemSymbolName: good ? "checkmark.shield" : "exclamationmark.shield", accessibilityDescription: good ? "Slicers trust Bambuddy" : "Bambuddy Cert Installer needs you")
+        let image = NSImage(systemSymbolName: good ? "checkmark.shield" : "exclamationmark.shield", accessibilityDescription: good ? "Slicers trust Bambuddy" : "Bambuddy Cert Installer needs attention")
         image?.isTemplate = true
         statusItem.button?.image = image
     }

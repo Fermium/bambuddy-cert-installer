@@ -57,7 +57,7 @@ struct GeneralPane: View {
             } header: {
                 Text("Bambuddy")
             } footer: {
-                Text("Leave it empty to find Bambuddy by its Virtual Printer on this network. Or type an address, such as bambuddy.lan or 192.168.1.50:8000.")
+                Text("Leave it empty to find Bambuddy automatically. Or type an address, such as bambuddy.lan or 192.168.1.50:8000.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -69,7 +69,7 @@ struct GeneralPane: View {
                         Button("Forget") { model.forgetTrust() }
                     }
                 } else {
-                    Text("None yet. Trust Bambuddy's certificate from the menu bar.").foregroundStyle(.secondary)
+                    Text("None yet. Trust it from the menu bar.").foregroundStyle(.secondary)
                 }
             }
 
@@ -77,7 +77,7 @@ struct GeneralPane: View {
                 Toggle("Add it again after a slicer updates", isOn: $model.fixAfterUpdates)
                 Toggle("Open at login", isOn: Binding(get: { model.opensAtLogin }, set: { model.opensAtLogin = $0 }))
             } footer: {
-                Text("Updates put back the slicer's own certificate file. Bambuddy Cert Installer adds the certificate again once the slicer is closed, for slicers you added it to.")
+                Text("An update puts back the slicer's own file. The app then adds the certificate again, once the slicer is closed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

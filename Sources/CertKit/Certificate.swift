@@ -19,8 +19,8 @@ public enum CertError: Error, Equatable, CustomStringConvertible, Sendable {
         case .fingerprintMismatch: "The certificate doesn't match the fingerprint Bambuddy sent with it."
         case .expired: "Bambuddy's certificate has expired."
         case .slicerRunning(let name): "Quit \(name) first."
-        case .noPermission(let name): "macOS didn't allow changing \(name). Allow Bambuddy Cert Installer in System Settings › Privacy & Security › App Management, then try again."
-        case .signingFailed(let output): "Re-signing failed, so the change was undone: \(output)"
+        case .noPermission(let name): "macOS blocked the change to \(name). Allow Bambuddy Cert Installer in System Settings › Privacy & Security › App Management, and try again."
+        case .signingFailed(let output): "Re-signing failed, and the change was undone: \(output)"
         case .nothingToUndo: "There's no backup to restore."
         }
     }

@@ -118,7 +118,7 @@ final class Model: ObservableObject {
         } else {
             bambuddy = nil
             cert = nil
-            message = "Bambuddy wasn't found on this network. Turn on its Virtual Printer, or type its address in Settings."
+            message = "Turn on its Virtual Printer, or type its address in Settings."
         }
         await reloadSlicers()
         if fixAfterUpdates { await fixUpdated() }
@@ -146,7 +146,7 @@ final class Model: ObservableObject {
             note = "Added the certificate again to \(result.fixed.map(\.name).joined(separator: " and ")) after an update."
             await reloadSlicers()
         }
-        if let (slicer, error) = result.failed.first { message = "\(slicer.name) updated, and adding the certificate again failed: \(error)" }
+        if let (slicer, error) = result.failed.first { message = "\(slicer.name) updated. Adding the certificate again failed: \(error)" }
     }
 
     /// An update replaces the slicer, so watch where slicers live. Anything changing there leads to one check

@@ -62,7 +62,7 @@ struct PopoverView: View {
 
     private var trustCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(model.changed ? "Only trust the new certificate if you changed it in Bambuddy." : "Check this matches Bambuddy's Settings › Virtual Printer page.")
+            Text(model.changed ? "Trust it only if you changed it in Bambuddy." : "Compare it with Bambuddy's Settings › Virtual Printer page.")
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
             if let cert = model.cert {
                 Text(cert.fingerprint).font(.caption2.monospaced()).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
