@@ -35,6 +35,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if args.contains("-popover") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { MainActor.assumeIsolated { self.showPopover() } } }
     }
 
+    /// Opening the app again, from Finder or Spotlight, shows the popover, or Settings when the menu bar item
+    /// is hidden: by System Settings › Menu Bar, or behind the notch.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if statusItem.isVisible, statusItem.button?.window?.occlusionState.contains(.visible) == true {
+            showPopover()
+        } else {
+            openSettings()
+        }
+        return false
+    }
+
     private func updateIcon() {
         let good = model.allGood
         let image = NSImage(systemSymbolName: good ? "checkmark.shield" : "exclamationmark.shield", accessibilityDescription: good ? "Slicers trust Bambuddy" : "Bambuddy Cert Installer needs attention")
