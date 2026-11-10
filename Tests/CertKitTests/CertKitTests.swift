@@ -119,6 +119,29 @@ import Testing
     #expect(try String(contentsOf: slicer.certFile, encoding: .utf8) == existing)
 }
 
+@Test func slicersYouAddedGetFixedAfterAnUpdate() throws {
+    let (existing, _) = try makeCA("Bambu Lab CA"), (_, ca) = try makeCA()
+    let mine = try makeSlicer(certs: existing), other = try makeSlicer(certs: existing), open = try makeSlicer(certs: existing)
+    let installer = Installer(backups: tempDir())
+    for s in [mine, open] { try installer.install(ca, into: s) }
+    // Each update brings a new version and the original file back.
+    for s in [mine, other, open] {
+        let plist = s.app.appending(path: "Contents/Info.plist")
+        let info = NSMutableDictionary(contentsOf: plist)!
+        info["CFBundleShortVersionString"] = "2.0"
+        info.write(to: plist, atomically: true)
+        try Data(existing.utf8).write(to: s.certFile)
+        try run("/usr/bin/codesign", ["--force", "--sign", "-", s.app.path])
+    }
+    let result = installer.fixUpdated([mine, other, open], cert: ca, managed: [mine.bundleID, open.bundleID], running: [open.id])
+    #expect(result.fixed == [mine], "only a slicer you added it to, and not while it's open")
+    #expect(result.failed.isEmpty)
+    #expect(installer.state(of: mine, for: ca) == .init(trusted: true, signatureValid: true, canUndo: true))
+    #expect(!installer.contains(other, ca), "a slicer you never added it to is left alone")
+    #expect(!installer.contains(open, ca))
+    #expect(installer.fixUpdated([mine], cert: ca, managed: [mine.bundleID], running: []).fixed.isEmpty, "nothing to do the second time")
+}
+
 @Test func aBrokenSignatureShowsUp() throws {
     let (existing, _) = try makeCA("Bambu Lab CA"), (_, ca) = try makeCA()
     let slicer = try makeSlicer(certs: existing)

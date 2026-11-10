@@ -23,12 +23,25 @@ public struct Slicer: Identifiable, Hashable, Sendable {
         ("Bambu Studio", "com.bambulab.bambu-studio"),
     ]
 
-    /// Every copy macOS knows about that has a certificate file.
+    /// The Applications folders, read directly: right after an update, macOS's app database can still miss
+    /// the new copy for a while.
+    static func inApplicationFolders() -> [(String, URL)] {
+        let folders = [URL(filePath: "/Applications"), FileManager.default.homeDirectoryForCurrentUser.appending(path: "Applications")]
+        return folders.flatMap { folder in
+            ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+                .filter { $0.pathExtension == "app" }
+                .compactMap { app in (NSDictionary(contentsOf: app.appending(path: "Contents/Info.plist"))?["CFBundleIdentifier"] as? String).map { ($0, app) } }
+        }
+    }
+
+    /// Every copy that has a certificate file: in the Applications folders, and anywhere else macOS knows of.
     @MainActor
     public static func installed() -> [Slicer] {
         var found: [Slicer] = []
+        let direct = inApplicationFolders()
         for (name, bundleID) in known {
-            for url in NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleID) {
+            let urls = direct.filter { $0.0 == bundleID }.map(\.1) + NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleID)
+            for url in urls {
                 let slicer = Slicer(name: name, bundleID: bundleID, app: url.standardizedFileURL)
                 // Skip copies inside other bundles, in the Trash, or already listed.
                 guard FileManager.default.fileExists(atPath: slicer.certFile.path), !url.path.contains("/.Trash/"),

@@ -50,6 +50,20 @@ public struct Installer: Sendable {
         return true
     }
 
+    /// After an update a slicer comes back with its own file. For each slicer you added the certificate to
+    /// that no longer has it, and isn't running, adds it again. Returns the ones it fixed, and any failures.
+    public func fixUpdated(_ slicers: [Slicer], cert: CACertificate, managed: Set<String>, running: Set<String>) -> (fixed: [Slicer], failed: [(Slicer, Error)]) {
+        var fixed: [Slicer] = [], failed: [(Slicer, Error)] = []
+        for slicer in slicers where managed.contains(slicer.bundleID) && !running.contains(slicer.id) && !contains(slicer, cert) {
+            do {
+                if try install(cert, into: slicer) { fixed.append(slicer) }
+            } catch {
+                failed.append((slicer, error))
+            }
+        }
+        return (fixed, failed)
+    }
+
     /// Puts the slicer back as it was before this app first changed it.
     public func undo(_ slicer: Slicer) throws {
         guard let saved = snapshot(of: slicer) else { throw CertError.nothingToUndo }

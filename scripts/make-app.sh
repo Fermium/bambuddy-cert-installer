@@ -6,7 +6,8 @@ VERSION="${VERSION:-0.1.0}"
 swift build -c release --product BambuddyCertInstaller
 app="build/Bambuddy Cert Installer.app"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp LICENSE "$app/Contents/Resources/LICENSE"
 cp .build/release/BambuddyCertInstaller "$app/Contents/MacOS/BambuddyCertInstaller"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
