@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: "26.6"
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          swift --version
+      # The tests make throwaway certificates and a tiny signed app, and talk to fakes on loopback.
+      # The live tests stay off: they need a real Bambuddy and real slicers.
+      - name: Test
+        run: swift test
+      - name: Build the app
+        run: UNIVERSAL=1 scripts/make-app.sh

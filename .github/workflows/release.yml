@@ -1,0 +1,98 @@
+# Tag push (v1.2.3) -> universal build -> zip -> GitHub Release -> bump the Homebrew tap.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+env:
+  XCODE_VERSION: "26.6"
+  TAP_REPO: fermium/homebrew-tap
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+      - name: Version from tag
+        id: version
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      - name: Test
+        run: swift test
+      - name: Build
+        run: UNIVERSAL=1 scripts/make-app.sh
+      - name: Package
+        id: package
+        run: |
+          mkdir dist
+          zip="dist/BambuddyCertInstaller-${VERSION}.zip"
+          ditto -c -k --keepParent "build/Bambuddy Cert Installer.app" "$zip"
+          sha="$(shasum -a 256 "$zip" | cut -d' ' -f1)"
+          echo "$sha  $(basename "$zip")" > dist/SHA256SUMS.txt
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: dist
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            --title "Bambuddy Cert Installer ${{ needs.build.outputs.version }}"
+
+  bump-tap:
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    env:
+      TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+    steps:
+      # Fails, rather than warns, so a release never silently leaves the tap behind.
+      - name: Check for the tap token
+        if: env.TAP_TOKEN == ''
+        run: |
+          echo "::error::TAP_GITHUB_TOKEN isn't set, so the Homebrew tap wasn't updated."
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.TAP_REPO }}
+          token: ${{ env.TAP_TOKEN }}
+          path: tap
+      - name: Update the cask
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          SHA: ${{ needs.build.outputs.sha256 }}
+        run: |
+          cd tap
+          cask=Casks/bambuddy-cert-installer.rb
+          sed -E -i "s/^  version \".*\"/  version \"${VERSION}\"/" "$cask"
+          sed -E -i "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$cask"
+          git diff
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "bambuddy-cert-installer ${VERSION}" || { echo "nothing to commit"; exit 0; }
+          git push
