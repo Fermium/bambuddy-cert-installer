@@ -207,6 +207,11 @@ final class Model: ObservableObject {
         }
     }
 
+    /// Bambuddy's web page.
+    func openBambuddy() {
+        if let address = bambuddy?.address { NSWorkspace.shared.open(address) }
+    }
+
     // MARK: Open at login
 
     var opensAtLogin: Bool {

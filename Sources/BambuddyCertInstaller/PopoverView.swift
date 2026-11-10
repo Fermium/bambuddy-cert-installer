@@ -100,6 +100,8 @@ struct PopoverView: View {
             Button { Task { await model.refresh() } } label: { Label("Check Again", systemImage: "arrow.clockwise") }
                 .disabled(model.checking)
             Spacer()
+            Button { model.openBambuddy() } label: { Image(systemName: "safari") }
+                .help("Open Bambuddy").disabled(model.bambuddy == nil)
             Button(action: openSettings) { Image(systemName: "gearshape") }.help("Settings")
             Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }.help("Quit")
         }

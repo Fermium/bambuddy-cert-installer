@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             let menu = NSMenu()
+            let open = menu.addItem(withTitle: "Open Bambuddy", action: model.bambuddy == nil ? nil : #selector(openBambuddy), keyEquivalent: "o")
+            open.target = self
             menu.addItem(withTitle: "Check Again", action: #selector(checkAgain), keyEquivalent: "r").target = self
             menu.addItem(withTitle: "Settings…", action: #selector(openSettingsItem), keyEquivalent: ",").target = self
             menu.addItem(.separator())
@@ -65,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController?.view.window?.makeKey()
     }
 
+    @objc private func openBambuddy() { model.openBambuddy() }
     @objc private func checkAgain() { Task { await model.refresh() } }
     @objc private func openSettingsItem() { openSettings() }
 
