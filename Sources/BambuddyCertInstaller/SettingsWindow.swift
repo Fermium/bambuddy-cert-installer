@@ -30,6 +30,7 @@ final class SettingsWindowController {
     private func tab<V: View>(_ title: String, _ symbol: String, _ view: V) -> NSTabViewItem {
         let host = NSHostingController(rootView: view)
         host.sizingOptions = .preferredContentSize
+        host.title = title   // the window's title follows the selected tab
         let item = NSTabViewItem(viewController: host)
         item.label = title
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
@@ -63,7 +64,7 @@ struct GeneralPane: View {
 
             Section("Trusted Certificate") {
                 if let trusted = model.trusted {
-                    Text(trusted).font(.caption.monospaced()).textSelection(.enabled)
+                    Text(Self.twoLines(trusted)).font(.caption.monospaced()).textSelection(.enabled)
                     HStack {
                         Spacer()
                         Button("Forget") { model.forgetTrust() }
@@ -93,6 +94,13 @@ struct GeneralPane: View {
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear { typed = model.address }
+    }
+
+    /// 32 pairs as two lines of 16, so a line never splits a pair.
+    static func twoLines(_ fingerprint: String) -> String {
+        let pairs = fingerprint.split(separator: ":")
+        guard pairs.count > 16 else { return fingerprint }
+        return pairs.prefix(16).joined(separator: ":") + ":\n" + pairs.dropFirst(16).joined(separator: ":")
     }
 
     private func save() {

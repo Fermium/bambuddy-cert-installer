@@ -65,7 +65,7 @@ struct PopoverView: View {
             Text(model.changed ? "Trust it only if you changed it in Bambuddy." : "Compare it with Bambuddy's Settings › Virtual Printer page.")
                 .font(.callout).fixedSize(horizontal: false, vertical: true)
             if let cert = model.cert {
-                Text(cert.fingerprint).font(.caption2.monospaced()).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                Text(GeneralPane.twoLines(cert.fingerprint)).font(.caption2.monospaced()).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                     .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
             }
