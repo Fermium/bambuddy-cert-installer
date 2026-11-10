@@ -79,6 +79,9 @@ jobs:
           exit 1
       - uses: actions/checkout@v7
         with:
+          path: source
+      - uses: actions/checkout@v7
+        with:
           repository: ${{ env.TAP_REPO }}
           token: ${{ env.TAP_TOKEN }}
           path: tap
@@ -89,6 +92,12 @@ jobs:
         run: |
           cd tap
           cask=Casks/bambuddy-cert-installer.rb
+          # The first release adds the cask from this repo.
+          if [[ ! -f "$cask" ]]; then
+            mkdir -p Casks
+            cp ../source/packaging/homebrew/bambuddy-cert-installer.rb "$cask"
+            git add "$cask"
+          fi
           sed -E -i "s/^  version \".*\"/  version \"${VERSION}\"/" "$cask"
           sed -E -i "s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" "$cask"
           git diff
