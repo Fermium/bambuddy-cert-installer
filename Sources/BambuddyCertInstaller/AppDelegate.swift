@@ -29,6 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.animates = true
         watch = model.objectWillChange.receive(on: RunLoop.main).sink { [weak self] _ in self?.updateIcon() }
         updateIcon()
+        // -settings and -popover open those at launch.
+        let args = CommandLine.arguments
+        if args.contains("-settings") { openSettings() }
+        if args.contains("-popover") { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { MainActor.assumeIsolated { self.showPopover() } } }
     }
 
     private func updateIcon() {
@@ -50,13 +54,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.menu = nil
             return
         }
-        if popover.isShown {
-            popover.performClose(nil)
-        } else if let button = statusItem.button {
-            Task { await model.reloadSlicers() }
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-        }
+        if popover.isShown { popover.performClose(nil) } else { showPopover() }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem.button else { return }
+        Task { await model.reloadSlicers() }
+        NSApp.activate()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     @objc private func checkAgain() { Task { await model.refresh() } }
