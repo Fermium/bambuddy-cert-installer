@@ -15,7 +15,7 @@ Slicer updates replace the file, so it checks again every 30 minutes and when yo
 
 ## Things to know
 
-- Re-signing makes the slicer ad hoc signed, so it's no longer notarized. macOS still opens it on your Mac, but it may ask again for permissions such as local network access.
+- Re-signing makes the slicer ad hoc signed, so it's no longer notarized. Gatekeeper would then refuse a downloaded app, so the app also removes the slicer's download (quarantine) flag, the way Homebrew does for apps that aren't notarized. macOS may ask again for permissions such as local network access.
 - macOS may ask you to allow Bambuddy Cert Installer under **System Settings › Privacy & Security › App Management** the first time it changes a slicer.
 - Quit a slicer before changing it.
 

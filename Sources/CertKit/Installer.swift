@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Adds the certificate to a slicer's file, then re-signs the app so macOS still opens it. Every change keeps a
@@ -57,6 +58,9 @@ public struct Installer: Sendable {
             _ = Self.sign(slicer.app)
             throw CertError.signingFailed(failure)
         }
+        // Gatekeeper checks a downloaded app against its notarization, which the new signature doesn't
+        // have, and would refuse to open it. You opened it before, so its download flag can go.
+        removexattr(slicer.app.path, "com.apple.quarantine", 0)
     }
 
     // MARK: Backups

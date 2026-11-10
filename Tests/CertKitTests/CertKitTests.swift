@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 @testable import CertKit
@@ -77,7 +78,9 @@ import Testing
     let installer = Installer(backups: tempDir())
     #expect(installer.state(of: slicer, for: ca) == .init(trusted: false, signatureValid: true, canUndo: false))
 
+    setxattr(slicer.app.path, "com.apple.quarantine", "0381;6af27b33;Safari;", 21, 0, 0)
     #expect(try installer.install(ca, into: slicer))
+    #expect(getxattr(slicer.app.path, "com.apple.quarantine", nil, 0, 0, 0) < 0, "a downloaded slicer's flag goes, or Gatekeeper refuses it")
     let after = try String(contentsOf: slicer.certFile, encoding: .utf8)
     #expect(after.hasPrefix(existing), "the slicer's own certificates stay first and unchanged")
     #expect(PEM.certificates(in: after).count == 2)
