@@ -19,6 +19,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       sha256: ${{ steps.package.outputs.sha256 }}
+      ed_signature: ${{ steps.sparkle.outputs.signature }}
     steps:
       - uses: actions/checkout@v7
       - name: Select Xcode
@@ -42,6 +43,19 @@ jobs:
           sha="$(shasum -a 256 "$zip" | cut -d' ' -f1)"
           echo "$sha  $(basename "$zip")" > dist/SHA256SUMS.txt
           echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+      # Sparkle installs an update only when this signature matches SUPublicEDKey in the app. The private key is
+      # the SPARKLE_ED_KEY secret; the signature itself is public.
+      - name: Sign the update
+        id: sparkle
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        run: |
+          if [[ -z "$SPARKLE_ED_KEY" ]]; then
+            echo "::warning::SPARKLE_ED_KEY isn't set, so this release isn't offered as an update."
+            exit 0
+          fi
+          sig="$(printf '%s' "$SPARKLE_ED_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - -p "dist/BambuddyCertInstaller-${VERSION}.zip")"
+          echo "signature=${sig}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
           name: release
@@ -65,14 +79,17 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
             --title "Bambuddy Cert Installer ${{ needs.build.outputs.version }}"
 
-  # Pushes the build to fermium.ltd.uk, which serves it at /apps/bambuddy-cert-installer/download
-  # and describes it at /apps/bambuddy-cert-installer/latest.json. FERMIUM_PUBLISH_TOKEN can only
+  # Pushes the build to fermium.ltd.uk, which serves it at /apps/bambuddy-cert-installer/download,
+  # describes it at /apps/bambuddy-cert-installer/latest.json and, when it is signed, offers it to
+  # the app as an update at /apps/bambuddy-cert-installer/appcast.xml. FERMIUM_PUBLISH_TOKEN can only
   # publish this app (mint it with scripts/app-token.mjs in Fermium/website).
   publish-website:
     needs: build
     runs-on: ubuntu-latest
     env:
       TOKEN: ${{ secrets.FERMIUM_PUBLISH_TOKEN }}
+      ED_SIGNATURE: ${{ needs.build.outputs.ed_signature }}
+      BUILD: ${{ github.run_number }}
       API: https://fermium.ltd.uk/api/apps/bambuddy-cert-installer/releases/${{ needs.build.outputs.version }}
     steps:
       - name: Check for the publish token
@@ -97,10 +114,14 @@ jobs:
             -H "x-sha256: $(sha256sum "$file" | cut -d' ' -f1)" \
             -H 'content-type: application/octet-stream' \
             --data-binary @"$file"
+          # The build number is the CFBundleVersion make-app.sh stamped, which Sparkle compares.
+          body="$(jq -nc --arg file "$name" --arg notes "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" \
+            --arg build "$BUILD" --arg sig "$ED_SIGNATURE" \
+            '{file: $file, releaseNotes: $notes} + (if $sig != "" then {build: $build, edSignature: $sig} else {} end)')"
           curl -fsS --retry 3 -X POST "$API/publish" \
             -H "Authorization: Bearer $TOKEN" \
             -H 'content-type: application/json' \
-            -d "{\"file\":\"$name\",\"releaseNotes\":\"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME\"}"
+            -d "$body"
 
   bump-tap:
     needs: [build, release]
