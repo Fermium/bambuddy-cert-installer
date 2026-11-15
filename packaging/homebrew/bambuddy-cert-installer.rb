@@ -14,8 +14,6 @@ cask "bambuddy-cert-installer" do
 
   depends_on macos: :sequoia
 
-  auto_updates true
-
   app "Bambuddy Cert Installer.app"
 
   # Not notarized yet: clear the quarantine flag so Gatekeeper lets the ad hoc signed app open.
