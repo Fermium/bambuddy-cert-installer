@@ -19,7 +19,7 @@ enum Snapshot {
             let appearance = NSAppearance(named: look)!
             save(PopoverView(model: model, openSettings: {}), appearance, folder.appending(path: "popover-\(name).png"))
             save(GeneralPane(model: model), appearance, folder.appending(path: "settings-general-\(name).png"))
-            save(AboutView(), appearance, folder.appending(path: "settings-about-\(name).png"))
+            save(AboutView(updater: nil), appearance, folder.appending(path: "settings-about-\(name).png"))
         }
         NSApp.terminate(nil)
     }

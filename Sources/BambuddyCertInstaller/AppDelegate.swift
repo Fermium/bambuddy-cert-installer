@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await Snapshot.run(model, to: folder) }
             return
         }
+        Updater.current = Updater()
         if let button = statusItem.button {
             button.action = #selector(clicked)
             button.target = self
@@ -60,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             open.target = self
             menu.addItem(withTitle: "Check Again", action: #selector(checkAgain), keyEquivalent: "r").target = self
             menu.addItem(withTitle: "Settings…", action: #selector(openSettingsItem), keyEquivalent: ",").target = self
+            menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "").target = self
             menu.addItem(.separator())
             menu.addItem(withTitle: "Quit Bambuddy Cert Installer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
             statusItem.menu = menu
@@ -81,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openBambuddy() { model.openBambuddy() }
     @objc private func checkAgain() { Task { await model.refresh() } }
     @objc private func openSettingsItem() { openSettings() }
+    @objc private func checkForUpdates() { Updater.current?.checkForUpdates() }
 
     private func openSettings() {
         popover.performClose(nil)

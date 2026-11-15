@@ -15,7 +15,7 @@ final class SettingsWindowController {
             let tabs = NSTabViewController()
             tabs.tabStyle = .toolbar
             tabs.addTabViewItem(tab("General", "gearshape", GeneralPane(model: model)))
-            tabs.addTabViewItem(tab("About", "info.circle", AboutView()))
+            tabs.addTabViewItem(tab("About", "info.circle", AboutView(updater: Updater.current)))
             let window = NSWindow(contentViewController: tabs)
             window.styleMask = [.titled, .closable]
             window.toolbarStyle = .preference
@@ -110,7 +110,11 @@ struct GeneralPane: View {
 }
 
 struct AboutView: View {
+    /// nil in the snapshot mode, which shows the defaults.
+    let updater: Updater?
     @State private var showLicense = false
+    @State private var checks = true
+    @State private var installs = false
 
     static let companyURL = URL(string: "https://find-and-update.company-information.service.gov.uk/company/12425065")!
     static let issuesURL = URL(string: "https://github.com/Fermium/bambuddy-cert-installer/issues/new")!
@@ -128,6 +132,17 @@ struct AboutView: View {
             Image(systemName: "checkmark.shield.fill").font(.system(size: 72)).symbolRenderingMode(.hierarchical).foregroundStyle(.green)
             Text("Bambuddy Cert Installer").font(.title.weight(.semibold)).padding(.top, 12)
             Text(version).font(.callout).foregroundStyle(.secondary).textSelection(.enabled).padding(.top, 6)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Check for updates automatically", isOn: $checks)
+                    .onChange(of: checks) { _, on in updater?.checksAutomatically = on }
+                Toggle("Install updates automatically", isOn: $installs)
+                    .onChange(of: installs) { _, on in updater?.installsAutomatically = on }
+                    .disabled(!checks)
+            }
+            .toggleStyle(.checkbox)
+            .padding(.top, 18)
+            Button("Check for Updates…") { updater?.checkForUpdates() }.padding(.top, 10)
 
             VStack(spacing: 2) {
                 Text("© 2026 FERMIUM LTD")
@@ -153,15 +168,23 @@ struct AboutView: View {
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .padding(30)
-        .frame(width: 480, height: 440)
+        .frame(width: 480, height: 540)
         .sheet(isPresented: $showLicense) { LicenseSheet() }
+        .onAppear {
+            guard let updater else { return }
+            checks = updater.checksAutomatically
+            installs = updater.installsAutomatically
+        }
     }
 }
 
 private struct LicenseSheet: View {
     @Environment(\.dismiss) private var dismiss
-    private let text = Bundle.main.url(forResource: "LICENSE", withExtension: nil)
-        .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "MIT License\n\nCopyright (c) 2026 Fermium Ltd"
+    private let text = (Bundle.main.url(forResource: "LICENSE", withExtension: nil)
+        .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "MIT License\n\nCopyright (c) 2026 Fermium Ltd")
+        + (Bundle.main.url(forResource: "LICENSE-Sparkle", withExtension: nil)
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            .map { "\n\nUpdates use Sparkle (sparkle-project.org):\n\n" + $0 } ?? "")
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 12) {
